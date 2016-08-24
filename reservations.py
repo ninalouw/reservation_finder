@@ -10,6 +10,19 @@ BASE_URL = "https://www.bcferries.com/bcferries/faces/reservation/booking.jsp?pc
 class TerminalNotFound(BaseException):
     pass
 
+
+class Sailing(object):
+
+    def __init__(self, departure_time, arrival_time, departure_terminal,
+                 arrival_terminal, vessel_name, reservations_available):
+        self.departure_time = departure_time
+        self.arrival_time = arrival_time
+        self.departure_terminal = departure_terminal
+        self.arrival_terminal = arrival_terminal
+        self.vessel_name = vessel_name
+        self.reservations_available = reservations_available
+
+
 class Reservation(object):
 
     def __init__(self, departure_terminal='HORSESHOE BAY', arrival_terminal='DEPARTURE BAY',
@@ -108,26 +121,7 @@ class Reservation(object):
         elem.click()
         self._click_continue()
 
-    def _display_available_sailings(self):
-        sailings = self.driver.find_elements_by_class_name('sai_div_sailings_row_outer')
-        available_sailings = []
-        for sailing in sailings:
-            if 'select' in sailing.find_element_by_class_name('sai_col_select').text.lower():
-                available_sailings.append(sailing)
-
-
-        table_data = [['Departure', 'Arrival', 'Vessel']]
-        for sailing in available_sailings:
-            table_data.append([sailing.find_element_by_class_name('sai_col_depart').text,
-                              sailing.find_element_by_class_name('sai_col_arrive').text,
-                              sailing.find_element_by_class_name('sai_col_vessel').text
-                              ])
-
-        table = AsciiTable(table_data)
-        print 'Available Salings on {}'.format(self.departure_date.strftime('%B %d, %Y'))
-        print table.table
-
-    def calculate(self):
+    def get_available_sailings(self):
         self._select_dates()
         time.sleep(1)
         self._select_terminals()
@@ -136,7 +130,30 @@ class Reservation(object):
         time.sleep(1)
         self._enter_vehicle_info()
         time.sleep(1)
-        self._display_available_sailings()
+
+        sailings = self.driver.find_elements_by_class_name('sai_div_sailings_row_outer')
+        available_sailings = []
+        for sailing in sailings:
+            if 'select' in sailing.find_element_by_class_name('sai_col_select').text.lower():
+                available_sailings.append(
+                    Sailing(
+                      departure_time=sailing.find_element_by_class_name('sai_col_depart').text,
+                      arrival_time=sailing.find_element_by_class_name('sai_col_arrive').text,
+                      vessel_name=sailing.find_element_by_class_name('sai_col_vessel').text,
+                      departure_terminal=self.departure_terminal,
+                      arrival_terminal=self.arrival_terminal,
+                      reservations_available=True,
+                      ))
+        return available_sailings
+
+    def print_sailings(self, sailings):
+        table_data = [['Departure', 'Arrival', 'Vessel']]
+        for sailing in sailings:
+            table_data.append([sailing.departure_time, sailing.arrival_time, sailing.vessel_name])
+        table = AsciiTable(table_data)
+        print 'Available Salings on {}'.format(self.departure_date.strftime('%B %d, %Y'))
+        print "From {} To {}".format(self.departure_terminal, self.arrival_terminal)
+        print table.table
 
     def __del__(self):
         self.driver.close()
@@ -147,6 +164,8 @@ class Reservation(object):
 
 if __name__ == '__main__':
     res = Reservation()
-    res.calculate()
+    sailings = res.get_available_sailings()
+    res.print_sailings(sailings)
+
 
 
