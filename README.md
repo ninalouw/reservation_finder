@@ -31,15 +31,17 @@ From HORSESHOE BAY To DEPARTURE BAY
 
 ## Usage
 ```python
-from datetime import datetime
 from reservations import Reservation
 
-res = Reservation(departure_terminal='Tswawwassen', arrival_terminal='Duke Point',
+res = Reservation(departure_terminal='Tswawwassen', 
+                  arrival_terminal='Duke Point',
                   departure_date='2016-09-01')
 res.start()
 sailngs = res.get_available_sailings()  # returns list of Sailing objects
+```
 
-### With context manager ###
+### With context manager
+```python
 with Reservation('Departure Bay', 'Vancouver', departure_date='Oct 1, 2016') as res:
     sailings = res.get_available_sailings()
     # do stuff with sailings
@@ -47,12 +49,15 @@ with Reservation('Departure Bay', 'Vancouver', departure_date='Oct 1, 2016') as 
 
 ### Fuzzy Matching/Date Parsing
 There is support for fuzzy matching on terminal names and automatic date parsing for the common date formats.
-
-
-## TODO
-- Make driver a parameter on __init__
-- handle return trip dates
-- handle multiple dates
-- fuzzy matching of terminal names
-
-
+The following all evaluate to the same terminals and dates
+```python
+Reservation('Departure', 'Vanc', departure_date='Oct 1, 2016')
+# From: Nanaimo Departure Bay To: Vancouver Horseshoe Bay
+# Departing: October 1, 2016
+Reservation('Departure', 'Hors', departure_date='October 1, 2016')
+# From: Nanaimo Departure Bay To: Vancouver Horseshoe Bay
+# Departing: October 1, 2016
+Reservation('Dep Bay', 'Shoe', departure_date='2016-9-1')
+# From: Nanaimo Departure Bay To: Vancouver Horseshoe Bay
+# Departing: October 1, 2016
+```
