@@ -8,7 +8,7 @@ $ pip install -r requirements.txt
 
 ### Make sure everything is working 
 ```bash
-$ python reservations.py
+$ python reservations.py  # this will look for sailings 7 days from now
 Available Salings on August 30, 2016
 From HORSESHOE BAY To DEPARTURE BAY
 +-----------+----------+---------------------+
@@ -24,7 +24,6 @@ From HORSESHOE BAY To DEPARTURE BAY
 | 9:30 PM   | 11:10 PM | Coastal Renaissance |
 +-----------+----------+---------------------+
 ```
-Note: this will look for sailings 5 days from now from Horseshoe Bay to Departure Bay
 
 ## Usage
 ```python
@@ -32,9 +31,18 @@ from datetime import datetime
 from reservations import Reservation
 
 res = Reservation(departure_terminal='Tswawwassen', arrival_terminal='Duke Point',
-                  departure_date=datetime(2016, 9, 1))
-res.get_available_sailings()  # returns list of Sailing objects
+                  departure_date='2016-09-01')
+res.start()
+sailngs = res.get_available_sailings()  # returns list of Sailing objects
+
+### With context manager ###
+with Reservation('Departure Bay', 'Vancouver', departure_date='Oct 1, 2016') as res:
+    sailings = res.get_available_sailings()
+    # do stuff with sailings
 ```
+
+### Fuzzy Matching/Date Parsing
+There is support for fuzzy matching on terminal names and automatic date parsing for the common date formats.
 
 
 

@@ -1,8 +1,14 @@
+from __future__ import print_function
+
 import time
-from datetime import datetime, timedelta
+
+from datetime import datetime
+from dateutil import parser, relativedelta
+from fuzzywuzzy import process
 from terminaltables import AsciiTable
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
+from terminals import terminals
 
 BASE_URL = "https://www.bcferries.com/bcferries/faces/reservation/booking.jsp?pcode=GUEST"
 
@@ -25,26 +31,82 @@ class Sailing(object):
 
 class Reservation(object):
 
-    def __init__(self, departure_terminal='HORSESHOE BAY', arrival_terminal='DEPARTURE BAY',
-                 departure_date=None, return_date=None,
-                 num_12_plus=1, num_under_5=0, num_5_to_11=0, num_seniors=0,
-                 height_under_7ft=True, length_up_to_20ft=True):
-        self.departure_terminal = departure_terminal
-        self.arrival_terminal = arrival_terminal
-        self.departure_date = departure_date or (datetime.now() + timedelta(days=7))
-        self.return_date = return_date
+    SUPPORTED_DRIVERS = {
+        'chrome': 'Chrome',
+        'phantomjs': 'PhantomJS',
+        'firefox': 'Firefox',
+    }
+
+    def __init__(self,
+                 departure_terminal='horseshoe bay',
+                 arrival_terminal='departure bay',
+                 departure_date=None,
+                 return_date=None,
+                 num_12_plus=1,
+                 num_under_5=0,
+                 num_5_to_11=0,
+                 num_seniors=0,
+                 height_under_7ft=True,
+                 length_up_to_20ft=True,
+                 driver_type='chrome'):
+
+        result = process.extractOne(departure_terminal, choices=terminals.keys(), score_cutoff=75)
+        if result:
+            self.departure_terminal = result[0]
+        else:
+            raise TerminalNotFound('Could not find terminal {}'.format(departure_terminal))
+
+        arrival_choices = terminals[self.departure_terminal]
+        result = process.extractOne(arrival_terminal, choices=arrival_choices, score_cutoff=75)
+        if result:
+            self.arrival_terminal = result[0]
+        else:
+            raise TerminalNotFound('Could not find terminal {}'.format(arrival_terminal))
+
+        if departure_date:
+            self.departure_date = parser.parse(departure_date)
+        else:
+            self.departure_date = (datetime.now() + relativedelta.relativedelta(days=7))
+
+        if return_date:
+            self.return_date = parser.parse(return_date)
+        else:
+            self.return_date = None
+
+        print('Searching for reservations Departing {} and Returning {}'.format(
+                                self._format_date(self.departure_date),
+                                self._format_date(self.return_date)))
+        print('From: {} To: {}'.format(self.departure_terminal, self.arrival_terminal))
+
         self.num_12_plus = num_12_plus
         self.num_under_5 = num_under_5
         self.num_5_to_11 = num_5_to_11
         self.num_seniors = num_seniors
         self.height_under_7ft = height_under_7ft
         self.length_up_to_20ft = length_up_to_20ft
+        self.driver_type = driver_type
 
-        # get driver
-        self.driver = webdriver.Chrome()
+    def start(self):
+        self.driver = getattr(webdriver, self.SUPPORTED_DRIVERS.get(self.driver_type))()
         self.driver.get(BASE_URL)
         # switch to the iframe
         self.driver.switch_to_frame('iframe_workflow')
+
+    def __enter__(self):
+        self.driver = getattr(webdriver, self.SUPPORTED_DRIVERS.get(self.driver_type))()
+        self.driver.get(BASE_URL)
+        # switch to the iframe
+        self.driver.switch_to_frame('iframe_workflow')
+        return self
+
+    def __exit__(self, *args):
+        self.driver.close()
+
+    def _format_date(self, datetime_obj):
+        if datetime_obj:
+            return datetime_obj.strftime('%B %d, %Y')
+        else:
+            return ''
 
     def _click_continue(self):
         continue_button = self.driver.find_element_by_link_text('Continue')
@@ -53,28 +115,39 @@ class Reservation(object):
     def _get_departure_terminal(self):
         terminals = self.driver.find_elements_by_class_name("dd_div_deparr_terminal")
         for terminal in terminals:
-            if self.departure_terminal.lower() in terminal.text.lower():
+            terminal_name = terminal.text.lower().replace('\n', ' ')
+            if self.departure_terminal == terminal_name:
                 return terminal
         raise TerminalNotFound('No departure terminal named {}'.format(self.departure_terminal))
 
     def _get_arrival_terminal(self):
         terminals = self.driver.find_elements_by_class_name("dd_div_deparr_terminal")
         for terminal in terminals[14:]:
-            if self.arrival_terminal.lower() in terminal.text.lower():
+            terminal_name = terminal.text.lower().replace('\n', ' ')
+            if self.arrival_terminal == terminal_name:
                 return terminal
         raise TerminalNotFound('No arrival terminal named {}'.format(self.arrival_terminal))
 
     def _select_dates(self):
-        if not self.return_date:
-            # one way
-            date_picker = self.driver.find_element_by_class_name('date-picker-control').click()
-            time.sleep(0.5)
-            self.driver.find_element_by_class_name('cd-{}'.format(
-                                                self.departure_date.strftime('%Y%m%d'))).click()
+        # always need a departure date
+        self.driver.execute_script("document.getElementById('centerRegion:dateDestination:departureDate').setAttribute('type', 'text');")
+        departure_date_elem = self.driver.find_element_by_id('centerRegion:dateDestination:departureDate')
+        departure_date_elem.clear()
+        departure_date_elem.send_keys(self._format_date(self.departure_date))
+        time.sleep(1)
+
+        if self.return_date:
+            # round-trip this radio box is pre-selected so we only need to fill out the
+            # return date
+            self.driver.execute_script("document.getElementById('centerRegion:dateDestination:returnDate').setAttribute('type', 'text');")
+            departure_date_elem = self.driver.find_element_by_id('centerRegion:dateDestination:returnDate')
+            departure_date_elem.clear()
+            departure_date_elem.send_keys(self._format_date(self.return_date))
+            time.sleep(1)
         else:
-            # round trip is already pre-selected
-            # TODO
-            pass
+            # one-way so we need to select the one-way radio box
+            self.driver.find_element_by_id('centerRegion:dateDestination:roundTrip:_1').click()
+
         time.sleep(1)
 
     def _select_terminals(self):
@@ -151,9 +224,9 @@ class Reservation(object):
         for sailing in sailings:
             table_data.append([sailing.departure_time, sailing.arrival_time, sailing.vessel_name])
         table = AsciiTable(table_data)
-        print 'Available Salings on {}'.format(self.departure_date.strftime('%B %d, %Y'))
-        print "From {} To {}".format(self.departure_terminal, self.arrival_terminal)
-        print table.table
+        print('Available Salings on {}'.format(self._format_date(self.departure_date)))
+        print("From {} To {}".format(self.departure_terminal, self.arrival_terminal))
+        print(table.table)
 
     def __del__(self):
         self.driver.close()
@@ -161,11 +234,6 @@ class Reservation(object):
     def close(self):
         self.driver.close()
 
-
 if __name__ == '__main__':
-    res = Reservation()
-    sailings = res.get_available_sailings()
-    res.print_sailings(sailings)
-
-
-
+    with Reservation() as res:
+        res.print_sailings(res.get_available_sailings())
