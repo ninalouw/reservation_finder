@@ -1,8 +1,12 @@
 # bcferries
 Find an available reservation
 
+Uses selenium which right now is hardcoded to use the `Chrome` driver.
+
 ## Installation
 ```bash
+$ git clone https://github.com/adrienemery/bcferries
+$ cd bcferries
 $ pip install -r requirements.txt
 ```
 
@@ -36,5 +40,11 @@ res = Reservation(departure_terminal='Tswawwassen', arrival_terminal='Duke Point
 res.get_available_sailings()  # returns list of Sailing objects
 ```
 
+
+## TODO
+- Make driver a parameter on __init__
+- handle return trip dates
+- handle multiple dates
+- fuzzy matching of terminal names
 
 
