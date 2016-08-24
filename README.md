@@ -1,8 +1,12 @@
 # bcferries
 Find an available reservation
 
+Uses selenium which right now is hardcoded to use the `Chrome` driver.
+
 ## Installation
 ```bash
+$ git clone https://github.com/adrienemery/bcferries
+$ cd bcferries
 $ pip install -r requirements.txt
 ```
 
@@ -44,5 +48,11 @@ with Reservation('Departure Bay', 'Vancouver', departure_date='Oct 1, 2016') as 
 ### Fuzzy Matching/Date Parsing
 There is support for fuzzy matching on terminal names and automatic date parsing for the common date formats.
 
+
+## TODO
+- Make driver a parameter on __init__
+- handle return trip dates
+- handle multiple dates
+- fuzzy matching of terminal names
 
 
