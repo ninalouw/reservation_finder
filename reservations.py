@@ -1,5 +1,3 @@
-from __future__ import print_function
-
 import time
 
 from datetime import datetime
@@ -8,7 +6,7 @@ from fuzzywuzzy import process
 from terminaltables import AsciiTable
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
-from terminals import terminals
+from terminals import terminal_map
 
 BASE_URL = "https://www.bcferries.com/bcferries/faces/reservation/booking.jsp?pcode=GUEST"
 
@@ -29,7 +27,26 @@ class Sailing(object):
         self.reservations_available = reservations_available
 
 
-class Reservation(object):
+class Route(object):
+
+    def __init__(self, departure_terminal, arrival_terminal):
+        self.departure_terminal = departure_terminal
+        self.arrival_terminal = arrival_terminal
+
+    def __repr__(self):
+        return 'Route({} - {})'.format(self.departure_terminal.title(),
+                                       self.arrival_terminal.title())
+
+    def __eq__(self, other):
+        return ((self.departure_terminal == other.departure_terminal) and
+                (self.arrival_terminal == other.arrival_terminal))
+
+class ReservationFinder(object):
+    """Find avaliable reservations on BC Ferries website.
+
+    Reservations are found for a given departure and return date,
+    and between a specific departure and arrival terminal.
+    """
 
     SUPPORTED_DRIVERS = {
         'chrome': 'Chrome',
@@ -50,24 +67,30 @@ class Reservation(object):
                  length_up_to_20ft=True,
                  driver_type='chrome'):
 
-        result = process.extractOne(departure_terminal, choices=terminals.keys(), score_cutoff=75)
+        # fuzzy match the departure terminal
+        result = process.extractOne(departure_terminal,
+                                    choices=terminal_map.keys(),
+                                    score_cutoff=75)
         if result:
             self.departure_terminal = result[0]
         else:
             raise TerminalNotFound('Could not find terminal {}'.format(departure_terminal))
 
-        arrival_choices = terminals[self.departure_terminal]
+        # fuzzy match the arrival terminal
+        arrival_choices = terminal_map[self.departure_terminal]
         result = process.extractOne(arrival_terminal, choices=arrival_choices, score_cutoff=75)
         if result:
             self.arrival_terminal = result[0]
         else:
             raise TerminalNotFound('Could not find terminal {}'.format(arrival_terminal))
 
+        # parse departure date
         if departure_date:
             self.departure_date = parser.parse(departure_date)
         else:
             self.departure_date = (datetime.now() + relativedelta.relativedelta(days=7))
 
+        # parse return date
         if return_date:
             self.return_date = parser.parse(return_date)
         else:
@@ -87,32 +110,37 @@ class Reservation(object):
         self.driver_type = driver_type
 
     def start(self):
+        """Start webdriver
+        """
         self.driver = getattr(webdriver, self.SUPPORTED_DRIVERS.get(self.driver_type))()
         self.driver.get(BASE_URL)
-        # switch to the iframe
+        # switch to the iframe since it's where all the action happens
         self.driver.switch_to_frame('iframe_workflow')
 
     def __enter__(self):
-        self.driver = getattr(webdriver, self.SUPPORTED_DRIVERS.get(self.driver_type))()
-        self.driver.get(BASE_URL)
-        # switch to the iframe
-        self.driver.switch_to_frame('iframe_workflow')
+        self.start()
         return self
 
     def __exit__(self, *args):
         self.driver.close()
 
     def _format_date(self, datetime_obj):
+        """Format datetime object to `August 1, 2016` format
+        """
         if datetime_obj:
             return datetime_obj.strftime('%B %d, %Y')
         else:
             return ''
 
     def _click_continue(self):
+        """Click continue button on the current page
+        """
         continue_button = self.driver.find_element_by_link_text('Continue')
         continue_button.click()
 
     def _get_departure_terminal(self):
+        """Find departure terminal element
+        """
         terminals = self.driver.find_elements_by_class_name("dd_div_deparr_terminal")
         for terminal in terminals:
             terminal_name = terminal.text.lower().replace('\n', ' ')
@@ -121,6 +149,8 @@ class Reservation(object):
         raise TerminalNotFound('No departure terminal named {}'.format(self.departure_terminal))
 
     def _get_arrival_terminal(self):
+        """Find arrival terminal element
+        """
         terminals = self.driver.find_elements_by_class_name("dd_div_deparr_terminal")
         for terminal in terminals[14:]:
             terminal_name = terminal.text.lower().replace('\n', ' ')
@@ -147,7 +177,6 @@ class Reservation(object):
         else:
             # one-way so we need to select the one-way radio box
             self.driver.find_element_by_id('centerRegion:dateDestination:roundTrip:_1').click()
-
         time.sleep(1)
 
     def _select_terminals(self):
@@ -195,6 +224,7 @@ class Reservation(object):
         self._click_continue()
 
     def get_available_sailings(self):
+
         self._select_dates()
         time.sleep(1)
         self._select_terminals()
@@ -234,6 +264,68 @@ class Reservation(object):
     def close(self):
         self.driver.close()
 
+
+class TripPlanner(object):
+    """Plan a trip based on flexible dates and destinations.
+
+    A wrapper around ReservationFinder which will find reservations
+    on multiple days and multiple terminals so you can plan a trip
+    that fits your schedule.
+
+    To illustrate the use case lets use an example:
+    Let's say you have Friday off and you want to head out of town.
+    You want to leave either Thursday after work at 5pm or Friday before noon.
+    You are on the fence between going to Victoria or Tofino.
+    Normally you would have to check all of these combinations yourself,
+    but using TripPlanner you just give the dates and terminals you are interested
+    in and it will do the rest.
+
+    planner = TripPlanner(departing=['Sept 5, after 5pm', 'Sept 6, before noon'],
+                          returning=['Sept 9'],
+                          departing_from='Vancouver',
+                          arriving_in=['Victoria', 'Nanaimo'])
+    planner.find_reservations()
+    """
+
+    def __init__(self, departing, returning, departing_from, arriving_in):
+        self.departure_dates = self._parse_list(departing)
+        self.return_dates = self._parse_list(returning)
+        # TODO parse date modifiers
+
+        _departure_terminals = self._parse_list(departing_from)
+        _arrival_terminals = self._parse_list(arriving_in)
+
+        # get all departure terminals
+        self.routes = []
+        for terminal in _departure_terminals:
+            # find matches for terminal names provided
+            term_names = process.extract(terminal, choices=terminal_map.keys(), limit=2)
+            term_names = [r[0] for r in term_names if r[1] > 75]  # filter matches below 75%
+            # in the case of 'Vancouver' we should have two term names
+            # 'Tssawassen' and 'Horseshoe Bay'
+            for term_name in term_names:
+                # check each arrival terminal name to see if it is a match for given
+                # departure terminal name
+                for arrival_term in _arrival_terminals:
+                    result = process.extractOne(arrival_term,
+                                                choices=terminal_map[term_name],
+                                                score_cutoff=75)
+                    # create a route
+                    if result:
+                        self.routes.append(Route(term_name, result[0]))
+
+
+    def _parse_list(self, val):
+        if isinstance(val, list):
+            return val
+        elif isinstance(val, str):
+            return [val]
+        else:
+            raise TypeError('Unsupported type {}, must be `str` or `list`'.format(type(val)))
+
+
+
+
 if __name__ == '__main__':
-    with Reservation() as res:
+    with ReservationFinder() as res:
         res.print_sailings(res.get_available_sailings())

@@ -1,48 +1,62 @@
-terminals = {
-  "comox little river": [
-    "powell river westview"
+COMOX = "comox little river"
+POWELL_RIVER = "powell river westview"
+GALIANO_ISLAND = "galiano island sturdies bay"
+VANCOUVER_TSAWWASSEN = "vancouver tsawwassen"
+VANCOUVER_HORSESHOE_BAY = "vancouver horseshoe bay"
+NANAIMO_DEPARTURE_BAY = "nanaimo departure bay"
+LANGDALE = "sunshine coast langdale"
+VICTORIA = "victoria swartz bay"
+NANAIMO_DUKE_POINT = "nanaimo duke point"
+PENDER_ISLAND = "pender island otter bay"
+MAYNE_ISLAND = "mayne island village bay"
+SATURNA_ISLAND = "saturna island lyall harbour"
+SALT_SPRING_ISLAND "salt spring island long harbour"
+
+terminal_map = {
+  COMOX: [
+    POWELL_RIVER
   ],
-  "galiano island sturdies bay": [
-    "vancouver tsawwassen"
+  GALIANO_ISLAND: [
+    VANCOUVER_TSAWWASSEN
   ],
-  "vancouver horseshoe bay": [
-    "nanaimo departure bay",
-    "sunshine coast langdale"
+  VANCOUVER_HORSESHOE_BAY: [
+    NANAIMO_DEPARTURE_BAY,
+    LANGDALE,
   ],
-  "mayne island village bay": [
-    "vancouver tsawwassen"
+  MAYNE_ISLAND: [
+    VANCOUVER_TSAWWASSEN
   ],
-  "nanaimo departure bay": [
-    "vancouver horseshoe bay"
+  NANAIMO_DEPARTURE_BAY: [
+    VANCOUVER_HORSESHOE_BAY
   ],
-  "nanaimo duke point": [
-    "vancouver tsawwassen"
+  NANAIMO_DUKE_POINT: [
+    VANCOUVER_TSAWWASSEN
   ],
-  "pender island otter bay": [
-    "vancouver tsawwassen"
+  PENDER_ISLAND: [
+    VANCOUVER_TSAWWASSEN
   ],
-  "powell river westview": [
-    "comox little river"
+  POWELL_RIVER: [
+    COMOX
   ],
-  "salt spring island long harbour": [
-    "vancouver tsawwassen"
+  SALT_SPRING_ISLAND: [
+    VANCOUVER_TSAWWASSEN
   ],
-  "saturna island lyall harbour": [
-    "vancouver tsawwassen"
+  SATURNA_ISLAND: [
+    VANCOUVER_TSAWWASSEN
   ],
-  "sunshine coast langdale": [
-    "vancouver horseshoe bay"
+  LANGDALE: [
+    VANCOUVER_HORSESHOE_BAY
   ],
-  "vancouver tsawwassen": [
-    "victoria swartz bay",
-    "nanaimo duke point",
-    "pender island otter bay",
-    "galiano island sturdies bay",
-    "mayne island village bay",
-    "saturna island lyall harbour",
-    "salt spring island long harbour"
+  VANCOUVER_TSAWWASSEN: [
+    VICTORIA,
+    NANAIMO_DUKE_POINT,
+    PENDER_ISLAND,
+    GALIANO_ISLAND,
+    MAYNE_ISLAND,
+    SATURNA_ISLAND,
+    SALT_SPRING_ISLAND
   ],
-  "victoria swartz bay": [
-    "vancouver tsawwassen"
+  VICTORIA: [
+    VANCOUVER_TSAWWASSEN
   ]
 }
