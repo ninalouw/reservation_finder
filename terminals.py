@@ -10,7 +10,7 @@ NANAIMO_DUKE_POINT = "nanaimo duke point"
 PENDER_ISLAND = "pender island otter bay"
 MAYNE_ISLAND = "mayne island village bay"
 SATURNA_ISLAND = "saturna island lyall harbour"
-SALT_SPRING_ISLAND "salt spring island long harbour"
+SALT_SPRING_ISLAND = "salt spring island long harbour"
 
 terminal_map = {
   COMOX: [
@@ -59,4 +59,5 @@ terminal_map = {
   VICTORIA: [
     VANCOUVER_TSAWWASSEN
   ]
+
 }

@@ -1,14 +1,32 @@
 import time
+import curio
 
 from datetime import datetime
 from dateutil import parser, relativedelta
 from fuzzywuzzy import process
 from terminaltables import AsciiTable
 from selenium import webdriver
-from selenium.webdriver.common.keys import Keys
 from terminals import terminal_map
 
 BASE_URL = "https://www.bcferries.com/bcferries/faces/reservation/booking.jsp?pcode=GUEST"
+
+
+def _format_date(datetime_obj):
+    """Format datetime object to `August 1, 2016` format
+    """
+    if datetime_obj:
+        return datetime_obj.strftime('%B %d, %Y')
+    else:
+        return ''
+
+
+def _parse_list(val):
+    if isinstance(val, list):
+        return val
+    elif isinstance(val, str):
+        return [val]
+    else:
+        raise TypeError('Unsupported type {}, must be `str` or `list`'.format(type(val)))
 
 
 class TerminalNotFound(BaseException):
@@ -40,6 +58,10 @@ class Route(object):
     def __eq__(self, other):
         return ((self.departure_terminal == other.departure_terminal) and
                 (self.arrival_terminal == other.arrival_terminal))
+
+    def __hash__(self):
+        return hash(self.departure_terminal + self.arrival_terminal)
+
 
 class ReservationFinder(object):
     """Find avaliable reservations on BC Ferries website.
@@ -97,8 +119,8 @@ class ReservationFinder(object):
             self.return_date = None
 
         print('Searching for reservations Departing {} and Returning {}'.format(
-                                self._format_date(self.departure_date),
-                                self._format_date(self.return_date)))
+                                    _format_date(self.departure_date),
+                                    _format_date(self.return_date)))
         print('From: {} To: {}'.format(self.departure_terminal, self.arrival_terminal))
 
         self.num_12_plus = num_12_plus
@@ -123,14 +145,6 @@ class ReservationFinder(object):
 
     def __exit__(self, *args):
         self.driver.close()
-
-    def _format_date(self, datetime_obj):
-        """Format datetime object to `August 1, 2016` format
-        """
-        if datetime_obj:
-            return datetime_obj.strftime('%B %d, %Y')
-        else:
-            return ''
 
     def _click_continue(self):
         """Click continue button on the current page
@@ -163,7 +177,7 @@ class ReservationFinder(object):
         self.driver.execute_script("document.getElementById('centerRegion:dateDestination:departureDate').setAttribute('type', 'text');")
         departure_date_elem = self.driver.find_element_by_id('centerRegion:dateDestination:departureDate')
         departure_date_elem.clear()
-        departure_date_elem.send_keys(self._format_date(self.departure_date))
+        departure_date_elem.send_keys(_format_date(self.departure_date))
         time.sleep(1)
 
         if self.return_date:
@@ -172,7 +186,7 @@ class ReservationFinder(object):
             self.driver.execute_script("document.getElementById('centerRegion:dateDestination:returnDate').setAttribute('type', 'text');")
             departure_date_elem = self.driver.find_element_by_id('centerRegion:dateDestination:returnDate')
             departure_date_elem.clear()
-            departure_date_elem.send_keys(self._format_date(self.return_date))
+            departure_date_elem.send_keys(_format_date(self.return_date))
             time.sleep(1)
         else:
             # one-way so we need to select the one-way radio box
@@ -224,7 +238,6 @@ class ReservationFinder(object):
         self._click_continue()
 
     def get_available_sailings(self):
-
         self._select_dates()
         time.sleep(1)
         self._select_terminals()
@@ -254,7 +267,7 @@ class ReservationFinder(object):
         for sailing in sailings:
             table_data.append([sailing.departure_time, sailing.arrival_time, sailing.vessel_name])
         table = AsciiTable(table_data)
-        print('Available Salings on {}'.format(self._format_date(self.departure_date)))
+        print('Available Salings on {}'.format(_format_date(self.departure_date)))
         print("From {} To {}".format(self.departure_terminal, self.arrival_terminal))
         print(table.table)
 
@@ -288,12 +301,19 @@ class TripPlanner(object):
     """
 
     def __init__(self, departing, returning, departing_from, arriving_in):
-        self.departure_dates = self._parse_list(departing)
-        self.return_dates = self._parse_list(returning)
-        # TODO parse date modifiers
+        _departure_dates = _parse_list(departing)
+        _return_dates = _parse_list(returning)
+        # TODO parse date modifiers like `after 5pm`
 
-        _departure_terminals = self._parse_list(departing_from)
-        _arrival_terminals = self._parse_list(arriving_in)
+        # get all departure/return date pairs
+        self.date_pairs = []
+        for departure_date in _departure_dates:
+            for return_date in _return_dates:
+                self.date_pairs.append((parser.parse(departure_date),
+                                        parser.parse(return_date)))
+
+        _departure_terminals = _parse_list(departing_from)
+        _arrival_terminals = _parse_list(arriving_in)
 
         # get all departure terminals
         self.routes = []
@@ -314,18 +334,34 @@ class TripPlanner(object):
                     if result:
                         self.routes.append(Route(term_name, result[0]))
 
+    async def find_reservation(self, dates, route):
+        res = ReservationFinder(departure_terminal=route.departure_terminal,
+                                arrival_terminal=route.arrival_terminal,
+                                departure_date=_format_date(dates[0]),
+                                return_date=_format_date(dates[1]),
+                                )
+        await curio.run_in_thread(res.start)
+        sailings = await curio.run_in_thread(res.get_available_sailings)
+        await curio.run_in_thread(res.print_sailings, sailings)
+        await curio.run_in_thread(res.close)
 
-    def _parse_list(self, val):
-        if isinstance(val, list):
-            return val
-        elif isinstance(val, str):
-            return [val]
-        else:
-            raise TypeError('Unsupported type {}, must be `str` or `list`'.format(type(val)))
+    async def find_reservations(self):
+        for route in self.routes:
+            for dates in self.date_pairs:
+                await curio.spawn(self.find_reservation(dates, route))
 
-
-
+    def run(self):
+        start = time.time()
+        curio.run(self.find_reservations())
+        print('Total Time: {}'.format(time.time() - start))
 
 if __name__ == '__main__':
-    with ReservationFinder() as res:
-        res.print_sailings(res.get_available_sailings())
+    # with ReservationFinder() as res:
+    #     res.print_sailings(res.get_available_sailings())
+
+    planner = TripPlanner(departing=['Aug 27'],
+                          returning=['Aug 28'],
+                          departing_from='Vancouver',
+                          arriving_in=['Langdale', 'Nanaimo'])
+    planner.run()
+
