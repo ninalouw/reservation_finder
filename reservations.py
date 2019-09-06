@@ -1,4 +1,5 @@
 import time
+import pickle
 import curio
 
 from datetime import datetime
@@ -7,6 +8,12 @@ from fuzzywuzzy import process
 from terminaltables import AsciiTable
 from selenium import webdriver
 from terminals import terminal_map
+from rq import Queue
+from worker import conn
+from threading import Thread
+
+# RQ queue
+q = Queue(connection=conn)
 
 BASE_URL = "https://www.bcferries.com/bcferries/faces/reservation/booking.jsp?pcode=GUEST"
 
@@ -87,8 +94,8 @@ class ReservationFinder(object):
                  num_seniors=0,
                  height_under_7ft=True,
                  length_up_to_20ft=True,
-                 driver_type='chrome'):
-
+                 driver_type='chrome',):
+        self.driver = webdriver.Chrome()
         # fuzzy match the departure terminal
         result = process.extractOne(departure_terminal,
                                     choices=terminal_map.keys(),
@@ -134,10 +141,14 @@ class ReservationFinder(object):
     def start(self):
         """Start webdriver
         """
-        self.driver = getattr(webdriver, self.SUPPORTED_DRIVERS.get(self.driver_type))()
+        print("In start fn")
+        self.driver = webdriver.Chrome()
+        # driver = self.driver
         self.driver.get(BASE_URL)
+        print("In start fn 142")
         # switch to the iframe since it's where all the action happens
-        self.driver.switch_to_frame('iframe_workflow')
+        self.driver.switch_to.frame('iframe_workflow')
+        print("In start fn 143")
 
     def __enter__(self):
         self.start()
@@ -174,6 +185,9 @@ class ReservationFinder(object):
 
     def _select_dates(self):
         # always need a departure date
+        print("In Select dates")
+        #select round trip
+        self.driver.find_element_by_id('centerRegion:dateDestination:roundTrip:_0').click()
         self.driver.execute_script("document.getElementById('centerRegion:dateDestination:departureDate').setAttribute('type', 'text');")
         departure_date_elem = self.driver.find_element_by_id('centerRegion:dateDestination:departureDate')
         departure_date_elem.clear()
@@ -194,6 +208,7 @@ class ReservationFinder(object):
         time.sleep(1)
 
     def _select_terminals(self):
+        print("In Select terminals")
         departure_term = self._get_departure_terminal()
         departure_term.click()
         time.sleep(1)
@@ -202,6 +217,7 @@ class ReservationFinder(object):
         self._click_continue()
 
     def _enter_passenger_info(self):
+        print("In passenger info")
         twelve_plus_select = self.driver.find_element_by_id('centerRegion:passengers:passIterBaseOutbound:0:selectOnePassengerCountTop')
         twelve_plus_select.send_keys(str(self.num_12_plus))
         if self.num_12_plus == 1:
@@ -225,6 +241,7 @@ class ReservationFinder(object):
         self._click_continue()
 
     def _enter_vehicle_info(self):
+        print("In vehicle info")
         if self.height_under_7ft:
             elem = self.driver.find_element_by_id('centerRegion:vehicle:so_fareType_value:_0')
         else:
@@ -238,6 +255,7 @@ class ReservationFinder(object):
         self._click_continue()
 
     def get_available_sailings(self):
+        print("In get avail sailings")
         self._select_dates()
         time.sleep(1)
         self._select_terminals()
@@ -260,6 +278,7 @@ class ReservationFinder(object):
                       arrival_terminal=self.arrival_terminal,
                       reservations_available=True,
                       ))
+        print("End Avail sailings")
         return available_sailings
 
     def print_sailings(self, sailings):
@@ -334,34 +353,46 @@ class TripPlanner(object):
                     if result:
                         self.routes.append(Route(term_name, result[0]))
 
-    async def find_reservation(self, dates, route):
+    def find_reservation(self, dates, route):
         res = ReservationFinder(departure_terminal=route.departure_terminal,
                                 arrival_terminal=route.arrival_terminal,
                                 departure_date=_format_date(dates[0]),
                                 return_date=_format_date(dates[1]),
                                 )
-        await curio.run_in_thread(res.start)
-        sailings = await curio.run_in_thread(res.get_available_sailings)
-        await curio.run_in_thread(res.print_sailings, sailings)
-        await curio.run_in_thread(res.close)
+        generate_redis_key_for_route = lambda route: 'AVAILABLE SAILINGS:' + route.__repr__()
+        queued_job_ids = q.job_ids  # Gets a list of job IDs from the queue
+        queued_jobs = q.jobs
+        print('Job ids: {}'.format(queued_job_ids))
+        print('Jobs: {}'.format(queued_jobs))
+        redisKey = generate_redis_key_for_route(route)
+        conn.set(redisKey, pickle.dumps(route))
 
-    async def find_reservations(self):
+        res.start()
+        sailings = res.get_available_sailings()
+        res.print_sailings(sailings)
+        res.close()
+
+    def find_reservations(self):
         for route in self.routes:
             for dates in self.date_pairs:
-                await curio.spawn(self.find_reservation(dates, route))
+                job = q.enqueue_call(
+                    func=self.find_reservation, args=(dates, route), result_ttl=5000,
+                )
+                print(job.get_id())
+            print('{} : routes scheduled for info parsing'.format(len(self.routes)))
 
     def run(self):
         start = time.time()
-        curio.run(self.find_reservations())
+        self.find_reservations()
         print('Total Time: {}'.format(time.time() - start))
 
-if __name__ == '__main__':
-    # with ReservationFinder() as res:
-    #     res.print_sailings(res.get_available_sailings())
-
-    planner = TripPlanner(departing=['Aug 27'],
-                          returning=['Aug 28'],
-                          departing_from='Vancouver',
-                          arriving_in=['Langdale', 'Nanaimo'])
-    planner.run()
+# if __name__ == '__main__':
+# #     # with ReservationFinder() as res:
+# #     #     res.print_sailings(res.get_available_sailings())
+# #
+# #     planner = TripPlanner(departing=['Sep 5'],
+# #                           returning=['Sep 6'],
+# #                           departing_from='Vancouver',
+# #                           arriving_in=['Langdale', 'Nanaimo'])
+# #     planner.run()
 
