@@ -1,7 +1,5 @@
 import time
 import pickle
-import curio
-
 from datetime import datetime
 from dateutil import parser, relativedelta
 from fuzzywuzzy import process
@@ -10,9 +8,9 @@ from selenium import webdriver
 from terminals import terminal_map
 from rq import Queue
 from worker import conn
-from threading import Thread
 
 # RQ queue
+pickle.HIGHEST_PROTOCOL = 2
 q = Queue(connection=conn)
 
 BASE_URL = "https://www.bcferries.com/bcferries/faces/reservation/booking.jsp?pcode=GUEST"
@@ -289,6 +287,10 @@ class ReservationFinder(object):
         print('Available Salings on {}'.format(_format_date(self.departure_date)))
         print("From {} To {}".format(self.departure_terminal, self.arrival_terminal))
         print(table.table)
+        return table.table
+
+    def format_sailings_to_json(self, sailings):
+        return sailings
 
     def __del__(self):
         self.driver.close()
@@ -359,17 +361,14 @@ class TripPlanner(object):
                                 departure_date=_format_date(dates[0]),
                                 return_date=_format_date(dates[1]),
                                 )
-        generate_redis_key_for_route = lambda route: 'AVAILABLE SAILINGS:' + route.__repr__()
         queued_job_ids = q.job_ids  # Gets a list of job IDs from the queue
         queued_jobs = q.jobs
         print('Job ids: {}'.format(queued_job_ids))
         print('Jobs: {}'.format(queued_jobs))
-        redisKey = generate_redis_key_for_route(route)
-        conn.set(redisKey, pickle.dumps(route))
 
         res.start()
         sailings = res.get_available_sailings()
-        res.print_sailings(sailings)
+        res.format_sailings_to_json(sailings)
         res.close()
 
     def find_reservations(self):
@@ -385,14 +384,4 @@ class TripPlanner(object):
         start = time.time()
         self.find_reservations()
         print('Total Time: {}'.format(time.time() - start))
-
-# if __name__ == '__main__':
-# #     # with ReservationFinder() as res:
-# #     #     res.print_sailings(res.get_available_sailings())
-# #
-# #     planner = TripPlanner(departing=['Sep 5'],
-# #                           returning=['Sep 6'],
-# #                           departing_from='Vancouver',
-# #                           arriving_in=['Langdale', 'Nanaimo'])
-# #     planner.run()
 

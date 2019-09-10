@@ -1,7 +1,8 @@
 import os
-
+import pickle
 import redis
 from rq import Worker, Queue, Connection
+pickle.HIGHEST_PROTOCOL = 2
 
 listen = ['high', 'default', 'low']
 
