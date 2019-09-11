@@ -5,6 +5,9 @@ from dateutil import parser, relativedelta
 from fuzzywuzzy import process
 from terminaltables import AsciiTable
 from selenium import webdriver
+
+from app import db
+from models import Result, AvailableSailing
 from terminals import terminal_map
 from rq import Queue
 from worker import conn
@@ -38,7 +41,7 @@ class TerminalNotFound(BaseException):
     pass
 
 
-class Sailing(object):
+class InitialSailing(object):
 
     def __init__(self, departure_time, arrival_time, departure_terminal,
                  arrival_terminal, vessel_name, reservations_available):
@@ -268,7 +271,7 @@ class ReservationFinder(object):
         for sailing in sailings:
             if 'select' in sailing.find_element_by_class_name('sai_col_select').text.lower():
                 available_sailings.append(
-                    Sailing(
+                    InitialSailing(
                       departure_time=sailing.find_element_by_class_name('sai_col_depart').text,
                       arrival_time=sailing.find_element_by_class_name('sai_col_arrive').text,
                       vessel_name=sailing.find_element_by_class_name('sai_col_vessel').text,
@@ -276,6 +279,7 @@ class ReservationFinder(object):
                       arrival_terminal=self.arrival_terminal,
                       reservations_available=True,
                       ))
+
         print("End Avail sailings")
         return available_sailings
 
@@ -289,8 +293,30 @@ class ReservationFinder(object):
         print(table.table)
         return table.table
 
-    def format_sailings_to_json(self, sailings):
-        return sailings
+    def save_sailings_results(self, init_sailings):
+        print("In save sailings")
+        errors = []
+        if init_sailings:
+            print("If sailings")
+            for sailing in init_sailings:
+                print("for sailing: {} in sailings: {}".format(sailing, init_sailings))
+                try:
+                    sailing_to_save = AvailableSailing(
+                      departure_time=sailing.departure_time,
+                      arrival_time=sailing.arrival_time,
+                      vessel_name=sailing.vessel_name,
+                      departure_terminal=sailing.departure_terminal,
+                      arrival_terminal=sailing.arrival_terminal,
+                      reservations_available=sailing.reservations_available,
+                      )
+                    db.session.add(sailing_to_save)
+                    db.session.commit()
+                    print("db id: {}".format(sailing_to_save.id))
+                    return sailing_to_save.id
+                except Exception as e:
+                    print("errrrors: {}".format(str(e)))
+                    errors.append("Unable to add item to database.")
+                    return {"error": errors}
 
     def __del__(self):
         self.driver.close()
@@ -368,8 +394,9 @@ class TripPlanner(object):
 
         res.start()
         sailings = res.get_available_sailings()
-        res.format_sailings_to_json(sailings)
+        results = res.save_sailings_results(sailings)
         res.close()
+        return results
 
     def find_reservations(self):
         for route in self.routes:
