@@ -1,29 +1,68 @@
+const apiUrl = 'http://127.0.0.1:5000/';
+// import Vue from '../../templates/index.html';
+// import axios from '../components/static/templates/index.html';
 
 export default {
   name: 'ReservationForm',
   data() {
     return {
-      form: {
-          departureDate: "",
-          returnDate: "",
-          departureTerminal: "",
-          arrivalTerminal: "",
-      },
+        form: {
+            departing_date: "",
+            return_date: "",
+            depart_term: "",
+            arrive_term: "",
+        },
+        errors: [],
     };
   },
     methods: {
-        submitForm: function() {
-          console.log(this.form);
+        submitForm: function(form) {
+            this.form = form;
+            console.log(this.form);
+        },
+        checkForm: function (e) {
+            e.preventDefault();
+
+            this.errors = [];
+
+            if (this.form.departing_date === '') {
+                this.errors.push('Departure date is required.');
+            } else {
+                axios.post('/', {
+                form: this.form,
+              })
+              .then(function (response) {
+                console.log(response);
+              })
+              .catch(function (error) {
+                console.log(error);
+              });
+            }
         }
     },
 
   template: `
-    <form>
-        <input v-model="form.departureDate" placeholder="enter Departure date">
-        <input v-model="form.returnDate" placeholder="enter Return date">
-        <input v-model="form.departureTerminal" placeholder="enter Departure Terminal">
-        <input v-model="form.arrivalTerminal" placeholder="enter arrival Terminal">
-        <button type="submit" class="btn btn-primary" @click="submitForm"></button>
-    </form>
+    <div class="container">
+        <h2>Find a Ferry Reservation</h2>
+        <form id="app" @submit="checkForm" method="post">
+            <div class="form-group">
+                <label>Departure Date</label>
+                <input v-model="form.departing_date" placeholder="enter Departure date">
+            </div>
+            <div class="form-group">
+                <label>Return Date</label>
+                <input v-model="form.return_date" placeholder="enter Return date">
+             </div>
+            <div class="form-group">
+                <label>Departure Terminal</label>
+                <input v-model="form.depart_term" placeholder="enter Departure Terminal">
+            </div>
+            <div class="form-group">
+                <label>Arrival Terminal</label>
+                <input v-model="form.arrive_term" placeholder="enter arrival Terminal">
+            </div>
+            <button type="submit" class="btn btn-primary" @click="checkForm">Submit</button>
+        </form>
+    </div>
   `,
 };

@@ -4,7 +4,7 @@ from datetime import datetime
 from rq import Queue
 from worker import conn
 from rq.job import Job
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, json
 from flask_sqlalchemy import SQLAlchemy
 
 app = Flask(__name__)
@@ -21,10 +21,12 @@ def index():
     results = {}
     if request.method == "POST":
         # get inputs from user
-        departing_date = str(request.form['departing_date'])
-        return_date = str(request.form['return_date'])
-        depart_term = str(request.form['depart_term'])
-        arrive_term = str(request.form['arrive_term'])
+        data = json.loads(request.data.decode())
+        form = data['form']
+        departing_date = str(form['departing_date'])
+        return_date = str(form['return_date'])
+        depart_term = str(form['depart_term'])
+        arrive_term = str(form['arrive_term'])
         run_trip_planner(departing=[departing_date], returning=[return_date],
                          departing_from=depart_term, arriving_in=[arrive_term])
     return render_template('index.html', results=results)
