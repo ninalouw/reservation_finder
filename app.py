@@ -16,8 +16,13 @@ q = Queue(connection=conn)
 from models import *
 
 
-@app.route('/', methods=['GET', 'POST'])
+@app.route('/', methods=['GET'])
 def index():
+    return render_template('index.html')
+
+
+@app.route('/reservations', methods=['POST'])
+def get_reservations():
     results = {}
     if request.method == "POST":
         # get inputs from user
@@ -27,9 +32,8 @@ def index():
         return_date = str(form['return_date'])
         depart_term = str(form['depart_term'])
         arrive_term = str(form['arrive_term'])
-        run_trip_planner(departing=[departing_date], returning=[return_date],
+        return run_trip_planner(departing=[departing_date], returning=[return_date],
                          departing_from=depart_term, arriving_in=[arrive_term])
-    return render_template('index.html', results=results)
 
 
 @app.route("/results/<job_key>", methods=['GET'])
@@ -53,7 +57,7 @@ def run_trip_planner(departing, returning, departing_from, arriving_in):
                           returning=returning,
                           departing_from=departing_from,
                           arriving_in=arriving_in)
-    planner.run()
+    return planner.run()
 
 
 if __name__ == '__main__':

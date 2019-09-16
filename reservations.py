@@ -405,10 +405,9 @@ class TripPlanner(object):
                     func=self.find_reservation, args=(dates, route), result_ttl=5000,
                 )
                 print(job.get_id())
-            print('{} : routes scheduled for info parsing'.format(len(self.routes)))
+                print('{} : routes scheduled for info parsing'.format(len(self.routes)))
+                return job.get_id()
 
     def run(self):
-        start = time.time()
-        self.find_reservations()
-        print('Total Time: {}'.format(time.time() - start))
+        return self.find_reservations()
 

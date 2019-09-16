@@ -1,6 +1,5 @@
 const apiUrl = 'http://127.0.0.1:5000/';
-// import Vue from '../../templates/index.html';
-// import axios from '../components/static/templates/index.html';
+
 
 export default {
   name: 'ReservationForm',
@@ -13,32 +12,58 @@ export default {
             arrive_term: "",
         },
         errors: [],
+        results: [],
     };
   },
     methods: {
-        submitForm: function(form) {
-            this.form = form;
-            console.log(this.form);
+      getReservationsFromJob: function(jobID){
+            var timeout = "";
+            var vm = this;
+
+            var poller = function() {
+                // fire another request
+                axios.get('/results/'+ jobID)
+                    .then(function(data, status, headers, config) {
+                        if(data.status === 202) {
+                            console.log(data, data.status);
+                        } else if (data.status === 200){
+                            vm.results.push(data.data);
+                            console.log(vm.results);
+                            clearTimeout(timeout);
+                            return false;
+                        }
+                        timeout = setTimeout(poller, 2000);
+                    })
+                    .catch(function (error) {
+                        console.log(error);
+                    })
+
+            };
+            poller();
         },
-        checkForm: function (e) {
+
+        checkForm: function(e){
             e.preventDefault();
 
             this.errors = [];
+            var vm = this;
 
             if (this.form.departing_date === '') {
                 this.errors.push('Departure date is required.');
             } else {
-                axios.post('/', {
+                axios.post('/reservations', {
                 form: this.form,
               })
               .then(function (response) {
-                console.log(response);
+                  var jobId = response.data;
+                  console.log(jobId);
+                  vm.getReservationsFromJob(jobId);
               })
               .catch(function (error) {
-                console.log(error);
+                    console.log(error);
               });
             }
-        }
+        },
     },
 
   template: `
@@ -63,6 +88,13 @@ export default {
             </div>
             <button type="submit" class="btn btn-primary" @click="checkForm">Submit</button>
         </form>
+        <div v-if="results.length > 0">
+            <ul id="example-1">
+              <li v-for="result in results">
+                {{ result }}
+              </li>
+            </ul>
+        </div>
     </div>
   `,
 };
