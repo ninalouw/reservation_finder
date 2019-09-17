@@ -43,7 +43,7 @@ def get_results(job_key):
 
     if job.is_finished:
         res = AvailableSailing.query.filter_by(id=job.result).first()
-        result_object = jsonify({"Vessel": res.vessel_name, "departing": res.departure_time, "arrival": res.arrival_time,
+        result_object = jsonify({"Vessel": res.vessel_name, "Departing": res.departure_time, "Arrival": res.arrival_time,
                 "Departure Terminal": res.departure_terminal, "Arrival Terminal": res.arrival_terminal})
         return result_object
     else:
