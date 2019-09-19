@@ -84,7 +84,7 @@ class ReservationFinder(object):
         'firefox': 'Firefox',
     }
 
-    CHROME_BIN = os.environ.get('GOOGLE_CHROME_SHIM', None)
+    CHROME_BIN = os.environ.get('GOOGLE_CHROME_BIN', None)
     CHROMEDRIVER_PATH = os.environ.get('CHROMEDRIVER_PATH', None)
     chrome_options = webdriver.ChromeOptions()
     chrome_options.binary_location = CHROME_BIN if CHROME_BIN else {}
