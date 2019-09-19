@@ -1,5 +1,6 @@
 import time
 import pickle
+import os
 from datetime import datetime
 from dateutil import parser, relativedelta
 from fuzzywuzzy import process
@@ -77,12 +78,19 @@ class ReservationFinder(object):
     Reservations are found for a given departure and return date,
     and between a specific departure and arrival terminal.
     """
-
     SUPPORTED_DRIVERS = {
         'chrome': 'Chrome',
         'phantomjs': 'PhantomJS',
         'firefox': 'Firefox',
     }
+
+    CHROME_BIN = os.environ.get('GOOGLE_CHROME_SHIM', None)
+    CHROMEDRIVER_PATH = os.environ.get('CHROMEDRIVER_PATH', None)
+    chrome_options = webdriver.ChromeOptions()
+    chrome_options.binary_location = CHROME_BIN if CHROME_BIN else {}
+    chrome_options.add_argument('--disable-gpu')
+    chrome_options.add_argument('--no-sandbox')
+    executable_path = CHROMEDRIVER_PATH if CHROMEDRIVER_PATH else None
 
     def __init__(self,
                  departure_terminal='horseshoe bay',
@@ -95,8 +103,14 @@ class ReservationFinder(object):
                  num_seniors=0,
                  height_under_7ft=True,
                  length_up_to_20ft=True,
-                 driver_type='chrome',):
-        self.driver = webdriver.Chrome()
+                 driver_type='chrome',
+                 chrome_options=chrome_options,
+                 executable_path=executable_path):
+
+        if executable_path:
+            self.driver = webdriver.Chrome(executable_path=executable_path, chrome_options=chrome_options)
+        else:
+            self.driver = webdriver.Chrome()
         # fuzzy match the departure terminal
         result = process.extractOne(departure_terminal,
                                     choices=terminal_map.keys(),
@@ -143,7 +157,7 @@ class ReservationFinder(object):
         """Start webdriver
         """
         print("In start fn")
-        self.driver = webdriver.Chrome()
+        # self.driver = webdriver.Chrome(executable_path=CHROME_DRIVER_PATH, chrome_options=chrome_options)
         # driver = self.driver
         self.driver.get(BASE_URL)
         print("In start fn 142")
