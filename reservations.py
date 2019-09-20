@@ -163,6 +163,7 @@ class ReservationFinder(object):
         # self.driver = webdriver.Chrome(executable_path=CHROME_DRIVER_PATH, chrome_options=chrome_options)
 
         # driver = self.driver
+
         self.driver.get(BASE_URL)
         print("In start fn 142")
         # switch to the iframe since it's where all the action happens
