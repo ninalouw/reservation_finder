@@ -90,6 +90,14 @@ class ReservationFinder(object):
     chrome_options.binary_location = CHROME_BIN if CHROME_BIN else {}
     chrome_options.add_argument('--disable-gpu')
     chrome_options.add_argument('--no-sandbox')
+    # from selenium.webdriver.chrome.options import Options as ChromeOptions
+    #
+    # chrome_bin = os.environ.get('GOOGLE_CHROME_SHIM', None)
+    # chrome_options = ChromeOptions()
+    # chrome_options.binary_location = chrome_bin
+    # chrome_options.add_argument('--disable-gpu')
+    # chrome_options.add_argument('--no-sandbox')
+
     executable_path = CHROMEDRIVER_PATH if CHROMEDRIVER_PATH else None
 
     def __init__(self,
@@ -106,11 +114,12 @@ class ReservationFinder(object):
                  driver_type='chrome',
                  chrome_options=chrome_options,
                  executable_path=executable_path):
-
+        #
         if executable_path:
             self.driver = webdriver.Chrome(executable_path=executable_path, chrome_options=chrome_options)
         else:
             self.driver = webdriver.Chrome()
+        # self.driver = webdriver.Chrome(executable_path="chromedriver", chrome_options=chrome_options)
         # fuzzy match the departure terminal
         result = process.extractOne(departure_terminal,
                                     choices=terminal_map.keys(),
