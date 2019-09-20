@@ -115,6 +115,7 @@ class ReservationFinder(object):
             self.driver = webdriver.Chrome(executable_path=executable_path, chrome_options=chrome_options)
         else:
             self.driver = webdriver.Chrome()
+
         # self.driver = webdriver.Chrome(executable_path="chromedriver", chrome_options=chrome_options)
         # fuzzy match the departure terminal
         result = process.extractOne(departure_terminal,
