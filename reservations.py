@@ -84,19 +84,15 @@ class ReservationFinder(object):
         'firefox': 'Firefox',
     }
 
-    CHROME_BIN = os.environ.get('GOOGLE_CHROME_BIN', None)
+    GOOGLE_CHROME_BIN = '/app/.apt/usr/bin/google_chrome'
+    CHROMEDRIVER_PATH = '/app/.chromedriver/bin/chromedriver'
+
+    GOOGLE_CHROME_BIN = os.environ.get('GOOGLE_CHROME_BIN', None)
     CHROMEDRIVER_PATH = os.environ.get('CHROMEDRIVER_PATH', None)
     chrome_options = webdriver.ChromeOptions()
-    chrome_options.binary_location = CHROME_BIN if CHROME_BIN else {}
+    chrome_options.binary_location = GOOGLE_CHROME_BIN if GOOGLE_CHROME_BIN else {}
     chrome_options.add_argument('--disable-gpu')
     chrome_options.add_argument('--no-sandbox')
-    # from selenium.webdriver.chrome.options import Options as ChromeOptions
-    #
-    # chrome_bin = os.environ.get('GOOGLE_CHROME_SHIM', None)
-    # chrome_options = ChromeOptions()
-    # chrome_options.binary_location = chrome_bin
-    # chrome_options.add_argument('--disable-gpu')
-    # chrome_options.add_argument('--no-sandbox')
 
     executable_path = CHROMEDRIVER_PATH if CHROMEDRIVER_PATH else None
 
